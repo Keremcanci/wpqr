@@ -1,0 +1,514 @@
+﻿WhatsApp Bulk Mesaj Paneli
+Teknik Planlama ve Gelistirme Dokmani
+Claude Code icin Adim Adim Uygulama Rehberi
+1. Genel Bakis ve Mimari
+Bu sistem, musteri paneli uzerinden WhatsApp hesaplarini yoneterek toplu mesaj gondermeyi saglayan bir web uygulamasidir. 50 aktif + 50 yedek WhatsApp hesabi ile calisir, hesap ban yediginde otomatik yedege gecer.
+1.1 Teknoloji Stack
+Katman
+Teknoloji
+Gorev
+Backend
+Node.js + Express
+REST API, is mantigi
+WA Baglantisi
+Baileys (@whiskeysockets/baileys)
+WhatsApp Web protokolu
+Kuyruk
+BullMQ + Redis
+Mesaj kuyrugu, delay, retry
+Veritabani
+PostgreSQL + Prisma
+Kalici veri saklama
+Gercek Zamanli
+Socket.io
+Baglanti durumu canli guncelleme
+Frontend
+Next.js + shadcn/ui
+Panel arayuzu
+Proxy
+9Proxy GB-Based + Sticky Session
+Her WA hesabina sabit IP
+Sunucu
+Ubuntu 24.04 LTS, 4vCPU 8GB
+VPS altyapisi
+Process
+PM2
+Node process yonetimi
+Web Sunucu
+Nginx + SSL
+Reverse proxy, HTTPS
+1.2 Klasor Yapisi
+whatsapp-panel/
+├── backend/
+│   ├── src/
+│   │   ├── config/          # .env, db baglantisi, sabitler
+│   │   ├── whatsapp/        # Baileys session manager
+│   │   │   ├── SessionManager.js    # Tum WA hesaplarini yonet
+│   │   │   ├── AccountWorker.js     # Tek hesap icin worker
+│   │   │   └── ProxyManager.js      # 9Proxy API entegrasyonu
+│   │   ├── queue/           # BullMQ
+│   │   │   ├── MessageQueue.js      # Kuyruk tanimlari
+│   │   │   └── MessageWorker.js     # Kuyruk isleme worker
+│   │   ├── api/             # REST endpoint'ler
+│   │   │   ├── accounts.js          # WA hesap yonetimi
+│   │   │   ├── templates.js         # Template CRUD
+│   │   │   ├── campaigns.js         # Kampanya gonderim
+│   │   │   └── dashboard.js         # Istatistikler
+│   │   ├── socket/          # Socket.io olaylari
+│   │   └── app.js           # Express giris noktasi
+│   ├── prisma/
+│   │   └── schema.prisma    # Veritabani semasi
+│   └── package.json
+├── frontend/
+│   ├── pages/
+│   │   ├── index.js         # Dashboard
+│   │   ├── accounts/        # WA hesap yonetimi sayfasi
+│   │   ├── templates/       # Template yonetimi
+│   │   └── campaigns/       # Kampanya gonderim
+│   ├── components/
+│   └── package.json
+└── nginx/
+    └── nginx.conf
+2. Veritabani Semasi (Prisma)
+PostgreSQL uzerinde asagidaki tablolar kullanilacaktir:
+2.1 Tablolar
+// prisma/schema.prisma
+model Account {
+  id            String    @id @default(uuid())
+  phone         String    @unique      // +905xxxxxxxxx
+  label         String?               // Kullanici tanimi icin isim
+  status        String    @default("disconnected")
+  // connected | disconnected | banned | qr_pending
+  isBackup      Boolean   @default(false)
+  proxyHost     String?               // 9Proxy sticky session host
+  proxyPort     Int?
+  proxyUser     String?
+  proxyPass     String?
+  sessionData   String?   @db.Text    // Baileys session JSON
+  dailySent     Int       @default(0)
+  dailyLimit    Int       @default(200)
+  lastSentAt    DateTime?
+  createdAt     DateTime  @default(now())
+  messages      Message[]
+}
+model Template {
+  id        String    @id @default(uuid())
+  name      String
+  body      String    @db.Text   // {isim}, {soyisim} gibi degiskenler
+  createdAt DateTime  @default(now())
+  campaigns Campaign[]
+}
+model Campaign {
+  id          String    @id @default(uuid())
+  name        String
+  templateId  String
+  template    Template  @relation(fields: [templateId], references: [id])
+  status      String    @default("pending")
+  // pending | running | completed | failed
+  totalCount  Int       @default(0)
+  sentCount   Int       @default(0)
+  failCount   Int       @default(0)
+  createdAt   DateTime  @default(now())
+  messages    Message[]
+}
+model Message {
+  id          String    @id @default(uuid())
+  campaignId  String
+  campaign    Campaign  @relation(fields: [campaignId], references: [id])
+  accountId   String
+  account     Account   @relation(fields: [accountId], references: [id])
+  toPhone     String
+  body        String    @db.Text
+  status      String    @default("queued")
+  // queued | sent | failed
+  error       String?
+  sentAt      DateTime?
+  createdAt   DateTime  @default(now())
+}
+3. Backend Gelistirme Adimlari
+Adim 1 — Proje Kurulumu ve Bagimlilıklar
+Proje klasoru olustur: whatsapp-panel/backend/
+npm init -y ile package.json olustur
+Asagidaki paketleri yukle:
+npm install @whiskeysockets/baileys @hapi/boom
+npm install express cors dotenv
+npm install @prisma/client prisma
+npm install bullmq ioredis
+npm install socket.io
+npm install axios          # 9Proxy API icin
+npm install xlsx           # Excel parse icin
+npm install qrcode         # QR kod generate icin
+npm install pino           # Loglama
+npm install -D nodemon
+.env dosyasi olustur:
+DATABASE_URL=postgresql://user:pass@localhost:5432/wpanel
+REDIS_URL=redis://localhost:6379
+PORT=3001
+PROXY_API_KEY=9proxy_api_key_buraya
+PROXY_USERNAME=kullanici_adi
+PROXY_PASSWORD=sifre
+SESSION_DIR=./sessions
+Adim 2 — PostgreSQL ve Redis Kurulumu (Sunucuda)
+# PostgreSQL
+sudo apt update
+sudo apt install postgresql postgresql-contrib -y
+sudo -u postgres createuser --superuser wpanel_user
+sudo -u postgres createdb wpanel
+# Redis
+sudo apt install redis-server -y
+sudo systemctl enable redis
+sudo systemctl start redis
+Adim 3 — Prisma Schema ve Migration
+prisma/schema.prisma dosyasini yukardaki semaya gore olustur
+Migration calistir:
+npx prisma generate
+npx prisma migrate dev --name init
+Adim 4 — 9Proxy ProxyManager
+Her WhatsApp hesabina sticky session proxy atayan modul. src/whatsapp/ProxyManager.js:
+// ProxyManager.js
+// Gorev: Her WA hesabi icin 9Proxy'den sticky session IP al
+class ProxyManager {
+  // getProxyForAccount(accountId)
+  //   → 9Proxy API'den GB-based sticky session al
+  //   → host, port, user, pass dondur
+  //   → accountId ile eslestir, DB'ye kaydet
+  // refreshProxy(accountId)
+  //   → Mevcut proxy dusmus ise yenisini al
+  //   → Hesabi yeni proxy ile guncelle
+  // releaseProxy(accountId)
+  //   → Hesap kapaninca proxy'yi serbest birak
+}
+// 9Proxy sticky session endpoint:
+// host: proxy.9proxy.com
+// port: ozel port (dashboard'dan al)
+// auth: PROXY_USERNAME-session-ACCOUNT_ID:PROXY_PASSWORD
+Adim 5 — Baileys SessionManager
+Tum WhatsApp hesaplarini ayakta tutan ana modul. src/whatsapp/SessionManager.js:
+// SessionManager.js
+// Gorev: Tum WA hesaplarini baslat, izle, yonet
+class SessionManager {
+  sessions = new Map()   // accountId → BaileysSocket
+  // initialize()
+  //   → DB'den tum aktif hesaplari cek
+  //   → Her biri icin startSession() cagir
+  // startSession(account)
+  //   → ProxyManager'dan proxy al
+  //   → Baileys socket olustur (SOCKS5 proxy ile)
+  //   → QR gelince Socket.io ile panele gonder
+  //   → Baglanti kurulunca DB'yi guncelle: status=connected
+  //   → Ban/disconnect olunca: handleDisconnect() cagir
+  // handleDisconnect(accountId, reason)
+  //   → Neden ban mi, logout mu, network mi?
+  //   → Ban ise: markAsBanned(), yedegi aktive et
+  //   → Network ise: 30sn bekle, reconnect
+  // activateBackup()
+  //   → isBackup=true hesaplardan birini sec
+  //   → isBackup=false yap, session'i baslat
+  //   → Socket.io ile paneli bilgilendir
+  // sendMessage(accountId, toPhone, message)
+  //   → Ilgili session'i bul
+  //   → baileys.sendMessage() cagir
+  //   → Sonucu dondur
+}
+Adim 6 — BullMQ Mesaj Kuyrugu
+Mesajlari kuyruga alan ve sirali gonderen sistem. src/queue/MessageQueue.js:
+// MessageQueue.js
+// Gorev: Kampanya mesajlarini kuyruga al, sirali gonder
+// Kuyruk Ayarlari:
+// - concurrency: 5  (ayni anda max 5 mesaj isle)
+// - delay: her job icin 3000-8000ms random delay
+// - attempts: 3     (basarisizlikta 3 kez tekrar dene)
+// - backoff: exponential
+// addCampaignToQueue(campaignId, messages[])
+//   → Her mesaj icin ayri BullMQ job olustur
+//   → Job'a: toPhone, body, accountId, campaignId
+//   → Random delay ata (insan gibi gorunsun)
+// processMessage(job)
+//   → SessionManager.sendMessage() cagir
+//   → Basarili: DB'de Message.status = sent
+//   → Basarisiz: DB'de Message.status = failed, error kaydet
+//   → Socket.io ile canli ilerleme gonder
+// Account rotation:
+//   → Round-robin: siradaki aktif hesabi sec
+//   → Hesap gunluk limite ulastiysa atla
+//   → Tum hesaplar limitli ise kuyrugu durdur, uyar
+Adim 7 — REST API Endpoint'leri
+Method
+Endpoint
+Gorev
+GET
+/api/accounts
+Tum hesapları listele (durum, proxy, istatistik)
+POST
+/api/accounts
+Yeni hesap ekle (telefon numarasi)
+DELETE
+/api/accounts/:id
+Hesabi sil
+GET
+/api/accounts/:id/qr
+QR kod getir (base64)
+POST
+/api/accounts/:id/reconnect
+Baglantıyı yenile
+GET
+/api/templates
+Template listesi
+POST
+/api/templates
+Yeni template olustur
+PUT
+/api/templates/:id
+Template duzenle
+DELETE
+/api/templates/:id
+Template sil
+POST
+/api/campaigns
+Kampanya olustur ve gonder
+GET
+/api/campaigns
+Kampanya gecmisi
+GET
+/api/campaigns/:id
+Kampanya detay ve ilerleme
+POST
+/api/campaigns/:id/stop
+Kampanyayi durdur
+GET
+/api/dashboard
+Genel istatistikler
+POST
+/api/upload/excel
+Excel dosyasi yukle, numaralari parse et
+Adim 8 — Excel Upload (Multer + xlsx)
+// Desteklenen Excel formatlari: .xlsx, .xls, .csv
+// Beklenen kolon yapisi (esnek):
+//   A kolonu: telefon numarasi (zorunlu)
+//   B kolonu: isim (opsiyonel, template'de {isim} kullanmak icin)
+//   C kolonu: soyisim (opsiyonel)
+// Numaralar otomatik temizlenir:
+//   '0532 123 45 67' → '+905321234567'
+//   '532-123-4567'   → '+905321234567'
+//   '+905321234567'  → '+905321234567' (duzgun)
+// Gecersiz numaralar ayrilir, kullaniciya rapor gosterilir
+// Max 10.000 numara desteklenir tek yukleme
+4. Frontend Gelistirme Adimlari
+Adim 9 — Next.js Kurulumu
+npx create-next-app@latest frontend --typescript --tailwind --app
+cd frontend
+npx shadcn-ui@latest init
+npm install socket.io-client axios xlsx react-dropzone
+npm install recharts   # Istatistik grafikleri icin
+Adim 10 — Sayfa ve Komponent Yapisi
+Sayfa / Komponent
+Icerik
+/ (Dashboard)
+Toplam hesap, gunluk gonderilen, aktif kampanya, son aktivite grafigi
+/accounts
+Hesap listesi: her kart icin durum badge, QR modal, proxy bilgisi, gunluk limit
+/accounts — QR Modal
+Yeni hesap ekleme akisi: numara gir → QR goster → dogrulama bekleniyor
+/templates
+Template listesi ve CRUD, {degisken} destegi, on izleme
+/campaigns/new
+Template sec → Excel yukle → On izleme → Gonder
+/campaigns
+Kampanya gecmisi, ilerleme bar, detay modal
+AccountCard
+Durum: yesil/sari/kirmizi badge, baglanti suresi, gunluk gonderim sayaci
+QRModal
+Canli QR kod, 60sn sayac, otomatik yenileme
+TemplateEditor
+Metin alani, {degisken} renk vurgulama, on izleme
+ExcelUpload
+Surukle birak alan, parse edilen numaralar tablosu, gecersiz numaralar uyarisi
+CampaignProgress
+Socket.io ile canli: kac gonderildi, kac kaldi, hata sayisi
+Adim 11 — Socket.io Olaylari (Canli Guncelleme)
+Olay (Event)
+Yonu
+Tetikleyici
+account:status
+Server → Client
+Hesap baglandi/kesildi/ban yedi
+account:qr
+Server → Client
+QR kod hazirlandi (base64)
+account:backup_activated
+Server → Client
+Yedek hesap devreye girdi
+campaign:progress
+Server → Client
+Her mesaj gonderildikten sonra
+campaign:completed
+Server → Client
+Kampanya tamamlandi
+campaign:error
+Server → Client
+Kritik hata
+5. Sunucu Kurulum Adimlari
+Adim 12 — Sunucu Hazirlik
+VPS'e baglan: ssh root@SUNUCU_IP
+Sistem guncelle:
+apt update && apt upgrade -y
+apt install -y git curl nginx certbot python3-certbot-nginx
+Node.js 20 LTS yukle:
+curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+apt install -y nodejs
+npm install -g pm2
+PostgreSQL ve Redis yukle (Adim 2'deki komutlar)
+Proje dosyalarini yukle (git clone veya sftp)
+Adim 13 — Nginx Yapilandirmasi
+# /etc/nginx/sites-available/wpanel
+server {
+    listen 80;
+    server_name DOMAIN_ADI.com;
+    location /api/ {
+        proxy_pass http://localhost:3001;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+    }
+    location /socket.io/ {
+        proxy_pass http://localhost:3001;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+    }
+    location / {
+        proxy_pass http://localhost:3000;  # Next.js
+    }
+}
+SSL sertifikasi:
+certbot --nginx -d DOMAIN_ADI.com
+Adim 14 — PM2 ile Calistirma
+# Backend
+cd /path/to/backend
+pm2 start src/app.js --name wp-backend
+# Frontend
+cd /path/to/frontend
+npm run build
+pm2 start npm --name wp-frontend -- start
+# Sunucu yeniden basladiginda otomatik calis
+pm2 startup
+pm2 save
+6. Onemli Teknik Kurallar
+WhatsApp Ban Onleme
+Her hesaba FARKLI sticky session proxy atanmali
+Mesajlar arasi delay: 3-8 saniye RANDOM (sabit delay ban sebebidir)
+Hesap basina gunluk max 200 mesaj (baslangicta 50'den baslat, kademeli artir)
+Gece 00:00-08:00 arasi mesaj gonderme
+Ayni numaraya ayni kampanyada 1'den fazla mesaj gonderme
+Session dosyalari kaybolursa hesap yeniden QR taramak zorunda kalir — mutlaka DB'ye kaydet
+Proxy Sticky Session
+9Proxy'de GB-Based + Sticky Session kullan
+Her Baileys socket'i proxy ile olustur:
+import makeWASocket from '@whiskeysockets/baileys'
+import { SocksProxyAgent } from 'socks-proxy-agent'
+const agent = new SocksProxyAgent(
+  `socks5://user:pass@proxy.9proxy.com:PORT`
+)
+const sock = makeWASocket({
+  agent,   // tum trafik bu proxy uzerinden gider
+  ...diger_ayarlar
+})
+Proxy dustu ise socket'i kapat, yeni proxy al, yeniden baglan
+Hata Yonetimi
+Baileys 'connection.update' event'ini dinle: ban, logout, network error ayirt et
+Ban durumunda: hesabi banned olarak isaretele, otomatik yedegi devreye al
+Network hatalarinda: 3 kez retry, her seferinde 30sn bekle
+BullMQ job basarisiz olursa: 3 kez tekrar dene, sonra failed olarak kaydet
+7. Claude Code icin Adim Adim Siralama
+Claude Code'a asagidaki siraya gore verin, her adimi tamamlayip test edin:
+Adim
+Gorev
+Test Kriteri
+1
+Backend proje kurulumu, .env, package.json
+npm install hatasiz calismali
+2
+PostgreSQL + Redis kurulumu (sunucuda)
+psql ve redis-cli baglantisi calismali
+3
+Prisma schema olustur, migration calistir
+Tablolar DB'de gorunmeli
+4
+ProxyManager — 9Proxy sticky session al
+Proxy bilgileri DB'ye kaydedilmeli
+5
+Baileys SessionManager — tek hesap baglantisi
+QR cikti, telefonda okundu, baglandi
+6
+Socket.io — QR ve durum canli guncelleme
+Tarayicida QR gozukmeli
+7
+SessionManager — coklu hesap, yedek aktive
+2. hesap ban yediginde yedek devreye girmeli
+8
+BullMQ MessageQueue — kuyruk ve delay
+Mesajlar sirayla gonderilmeli
+9
+REST API — accounts endpoint'leri
+Postman ile test edilmeli
+10
+REST API — templates endpoint'leri
+CRUD calismali
+11
+REST API — campaigns endpoint'leri
+Kampanya olusturulabilmeli
+12
+Excel upload — xlsx parse, numara temizleme
+Excel yuklendi, numaralar listelendi
+13
+Next.js frontend kurulumu, shadcn/ui
+npm run dev hatasiz calismali
+14
+Dashboard sayfasi
+Istatistikler gorunmeli
+15
+Accounts sayfasi + QR Modal
+QR gozukup taranabilmeli
+16
+Templates sayfasi
+Template ekle/duzenle/sil calismali
+17
+Campaign/new sayfasi — excel + template + gonder
+Kampanya baslatilabilmeli
+18
+Campaigns sayfasi — canli ilerleme
+Socket.io ile canli sayac calismali
+19
+Nginx + SSL kurulumu
+https://domain.com calismali
+20
+PM2 ile production baslatma
+Sunucu yeniden basladiginda otomatik acilmali
+8. Maliyet ve Gelir Ozeti
+Kalem
+Aylik Maliyet
+Notlar
+VPS (4vCPU, 8GB, 240GB)
+$52.95
+Frankfurt, Ubuntu 24.04
+9Proxy GB-Based
+$20-50
+Sticky session, WhatsApp trafiği az
+Domain
+~$1
+Yillik ~$10, aylik ~$1
+SSL
+$0
+Let's Encrypt, ucretsiz
+TOPLAM GIDER
+~$75-105/ay
+Kurulum Ucreti (musteriden)
+$300
+Tek seferlik
+Aylik Servis Ucreti (musteriden)
+$300
+Tekrar eden
+Net Aylik Kar
+~$195-225
+Gider dustu 2-3x return
+NOT: Proxy maliyeti WhatsApp trafigine gore degisir. Ilk hafta test edip gercek tuketimi goruldukten sonra kesin rakam belli olur. GB-based ile buyuk ihtimalle $20-30/ay civarında kalir.
