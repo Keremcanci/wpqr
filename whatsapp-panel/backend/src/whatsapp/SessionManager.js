@@ -44,12 +44,17 @@ class SessionManager {
 
   async startSession(account) {
     const { default: makeWASocket, DisconnectReason, useMultiFileAuthState, makeCacheableSignalKeyStore } = await getBaileys()
-    const { SocksProxyAgent } = await import('socks-proxy-agent')
 
-    const proxy = await proxyManager.getProxyForAccount(account.id)
-    const agent = new SocksProxyAgent(
-      `socks5://${proxy.proxyUser}:${proxy.proxyPass}@${proxy.proxyHost}:${proxy.proxyPort}`
-    )
+    let agent = undefined
+    if (process.env.PROXY_USERNAME && process.env.PROXY_PASSWORD) {
+      const { SocksProxyAgent } = await import('socks-proxy-agent')
+      const proxy = await proxyManager.getProxyForAccount(account.id)
+      agent = new SocksProxyAgent(
+        `socks5://${proxy.proxyUser}:${proxy.proxyPass}@${proxy.proxyHost}:${proxy.proxyPort}`
+      )
+    } else {
+      console.warn(`[SessionManager] Proxy yok, direkt bağlanıyor → ${account.phone}`)
+    }
 
     const sessionDir = path.join(SESSION_DIR, account.id)
     if (!fs.existsSync(sessionDir)) fs.mkdirSync(sessionDir, { recursive: true })
