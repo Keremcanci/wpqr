@@ -27,6 +27,15 @@ router.post('/', async (req, res, next) => {
     const { phone, label, isBackup = false, dailyLimit = 200 } = req.body
     if (!phone) return res.status(400).json({ error: 'phone zorunlu' })
 
+    if (!isBackup) {
+      const activeCount = await prisma.account.count({
+        where: { isBackup: false, status: { not: 'banned' } },
+      })
+      if (activeCount >= 10) {
+        return res.status(400).json({ error: 'Maksimum 10 aktif hesap ekleyebilirsiniz' })
+      }
+    }
+
     const account = await prisma.account.create({
       data: { phone, label, isBackup, dailyLimit },
     })
