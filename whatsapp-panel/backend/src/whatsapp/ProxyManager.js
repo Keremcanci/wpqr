@@ -2,7 +2,6 @@ const axios = require('axios')
 const prisma = require('../config/db')
 const { encrypt, decrypt } = require('../utils/crypto')
 
-const PROXY_HOST = 'proxy.9proxy.com'
 const ENCRYPTED_SETTING_KEYS = new Set(['PROXY_PASSWORD', 'PROXY_API_KEY'])
 
 async function getSetting(key) {
@@ -20,9 +19,9 @@ class ProxyManager {
   }
 
   // 9Proxy API üzerinden mevcut IP'yi sorgular (opsiyonel doğrulama için)
-  async _fetchCurrentIp(proxyUser, proxyPass, proxyPort) {
+  async _fetchCurrentIp(proxyUser, proxyPass, proxyHost, proxyPort) {
     try {
-      const proxyUrl = `http://${proxyUser}:${proxyPass}@${PROXY_HOST}:${proxyPort}`
+      const proxyUrl = `http://${proxyUser}:${proxyPass}@${proxyHost}:${proxyPort}`
       const response = await axios.get('https://api.ipify.org?format=json', {
         proxy: false,
         httpAgent: undefined,
@@ -41,16 +40,17 @@ class ProxyManager {
    * ve Account kaydını günceller.
    */
   async getProxyForAccount(accountId) {
+    const proxyHost = await getSetting('PROXY_HOST')
     const proxyUsername = await getSetting('PROXY_USERNAME')
     const proxyPassword = await getSetting('PROXY_PASSWORD')
     const proxyPort = parseInt(await getSetting('PROXY_PORT') || '9000', 10)
 
     const sessionId = this._sessionId(accountId)
-    const proxyUser = `${proxyUsername}-session-${sessionId}`
+    const proxyUser = `${proxyUsername}-ssid-${sessionId}`
     const proxyPass = proxyPassword
 
     const proxyConfig = {
-      proxyHost: PROXY_HOST,
+      proxyHost,
       proxyPort,
       proxyUser,
       proxyPass,
@@ -69,6 +69,7 @@ class ProxyManager {
    * 9Proxy'de "yenile" = farklı session ID ile farklı IP almak demektir.
    */
   async refreshProxy(accountId) {
+    const proxyHost = await getSetting('PROXY_HOST')
     const proxyUsername = await getSetting('PROXY_USERNAME')
     const proxyPassword = await getSetting('PROXY_PASSWORD')
     const proxyPort = parseInt(await getSetting('PROXY_PORT') || '9000', 10)
@@ -79,11 +80,11 @@ class ProxyManager {
 
     const baseId = this._sessionId(accountId)
     const newSessionId = (baseId.slice(0, 4) + suffix).slice(0, 8)
-    const proxyUser = `${proxyUsername}-session-${newSessionId}`
+    const proxyUser = `${proxyUsername}-ssid-${newSessionId}`
     const proxyPass = proxyPassword
 
     const proxyConfig = {
-      proxyHost: PROXY_HOST,
+      proxyHost,
       proxyPort,
       proxyUser,
       proxyPass,
@@ -116,3 +117,4 @@ class ProxyManager {
 }
 
 module.exports = new ProxyManager()
+module.exports.getSetting = getSetting

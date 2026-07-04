@@ -4,7 +4,7 @@ const { encrypt } = require('../utils/crypto')
 
 const router = Router()
 
-const ALLOWED_KEYS = ['PROXY_API_KEY', 'PROXY_USERNAME', 'PROXY_PASSWORD', 'PROXY_PORT']
+const ALLOWED_KEYS = ['PROXY_API_KEY', 'PROXY_HOST', 'PROXY_USERNAME', 'PROXY_PASSWORD', 'PROXY_PORT']
 const ENCRYPTED_KEYS = new Set(['PROXY_PASSWORD', 'PROXY_API_KEY'])
 
 // GET /api/settings

@@ -47,11 +47,13 @@ class SessionManager {
     const { default: makeWASocket, DisconnectReason, useMultiFileAuthState, makeCacheableSignalKeyStore } = await getBaileys()
 
     let agent = undefined
-    if (process.env.PROXY_USERNAME && process.env.PROXY_PASSWORD) {
-      const { SocksProxyAgent } = await import('socks-proxy-agent')
+    const proxyUsername = await proxyManager.getSetting('PROXY_USERNAME')
+    const proxyPassword = await proxyManager.getSetting('PROXY_PASSWORD')
+    if (proxyUsername && proxyPassword) {
+      const { HttpsProxyAgent } = require('https-proxy-agent')
       const proxy = await proxyManager.getProxyForAccount(account.id)
-      agent = new SocksProxyAgent(
-        `socks5://${proxy.proxyUser}:${proxy.proxyPass}@${proxy.proxyHost}:${proxy.proxyPort}`
+      agent = new HttpsProxyAgent(
+        `http://${proxy.proxyUser}:${proxy.proxyPass}@${proxy.proxyHost}:${proxy.proxyPort}`
       )
     } else {
       console.warn(`[SessionManager] Proxy yok, direkt bağlanıyor → ${account.phone}`)

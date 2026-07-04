@@ -6,6 +6,7 @@ import api from "@/lib/api"
 
 interface Settings {
   PROXY_API_KEY: string
+  PROXY_HOST: string
   PROXY_USERNAME: string
   PROXY_PASSWORD: string
   PROXY_PORT: string
@@ -20,6 +21,7 @@ interface PasswordForm {
 export default function SettingsPage() {
   const [settings, setSettings] = useState<Settings>({
     PROXY_API_KEY: "",
+    PROXY_HOST: "",
     PROXY_USERNAME: "",
     PROXY_PASSWORD: "",
     PROXY_PORT: "9000",
@@ -113,6 +115,17 @@ export default function SettingsPage() {
               {showApiKey ? <EyeOff size={15} /> : <Eye size={15} />}
             </button>
           </div>
+        </div>
+
+        <div className="space-y-1">
+          <label className="text-sm font-medium text-neutral-700">Host</label>
+          <input
+            type="text"
+            value={settings.PROXY_HOST}
+            onChange={e => setSettings(s => ({ ...s, PROXY_HOST: e.target.value }))}
+            placeholder="niceproxy.io"
+            className="w-full border border-neutral-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
         </div>
 
         <div className="space-y-1">
