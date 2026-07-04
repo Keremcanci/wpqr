@@ -10,6 +10,7 @@ const templatesRouter = require('./api/templates')
 const campaignsRouter = require('./api/campaigns')
 const dashboardRouter = require('./api/dashboard')
 const uploadRouter = require('./api/upload')
+const settingsRouter = require('./api/settings')
 const { startWorker } = require('./queue/MessageWorker')
 const prisma = require('./config/db')
 
@@ -37,6 +38,7 @@ app.use('/api/templates', templatesRouter)
 app.use('/api/campaigns', campaignsRouter)
 app.use('/api/dashboard', dashboardRouter)
 app.use('/api/upload', uploadRouter)
+app.use('/api/settings', settingsRouter)
 
 // ── Global hata yöneticisi ────────────────────────────────────────────────────
 app.use((err, _req, res, _next) => {

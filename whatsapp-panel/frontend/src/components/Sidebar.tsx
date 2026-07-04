@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { LayoutDashboard, Smartphone, FileText, Send, BarChart2 } from "lucide-react"
+import { LayoutDashboard, Smartphone, FileText, Send, BarChart2, Settings } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 const links = [
@@ -11,6 +11,7 @@ const links = [
   { href: "/templates", label: "Şablonlar", icon: FileText },
   { href: "/campaigns/new", label: "Gönder", icon: Send },
   { href: "/campaigns", label: "Kampanyalar", icon: BarChart2 },
+  { href: "/settings", label: "Ayarlar", icon: Settings },
 ]
 
 export default function Sidebar() {

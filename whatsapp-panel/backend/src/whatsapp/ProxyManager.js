@@ -1,16 +1,11 @@
 const axios = require('axios')
 const prisma = require('../config/db')
 
-// 9Proxy GB-based sticky session:
-// Username format → PROXY_USERNAME-session-SESSION_ID:PROXY_PASSWORD
-// SESSION_ID sabit tutulduğu sürece aynı IP dönmeye devam eder.
-// API'den yeni session açmaya gerek yok; username formatıyla sticky sağlanır.
-
 const PROXY_HOST = 'proxy.9proxy.com'
-const PROXY_PORT = parseInt(process.env.PROXY_PORT || '9000', 10)
 
-if (!process.env.PROXY_USERNAME || !process.env.PROXY_PASSWORD) {
-  console.warn('[ProxyManager] UYARI: PROXY_USERNAME veya PROXY_PASSWORD tanımlı değil. Proxy bağlantıları başarısız olacak.')
+async function getSetting(key) {
+  const row = await prisma.setting.findUnique({ where: { key } })
+  return row ? row.value : (process.env[key] || '')
 }
 
 class ProxyManager {
@@ -43,13 +38,17 @@ class ProxyManager {
    * ve Account kaydını günceller.
    */
   async getProxyForAccount(accountId) {
+    const proxyUsername = await getSetting('PROXY_USERNAME')
+    const proxyPassword = await getSetting('PROXY_PASSWORD')
+    const proxyPort = parseInt(await getSetting('PROXY_PORT') || '9000', 10)
+
     const sessionId = this._sessionId(accountId)
-    const proxyUser = `${process.env.PROXY_USERNAME}-session-${sessionId}`
-    const proxyPass = process.env.PROXY_PASSWORD
+    const proxyUser = `${proxyUsername}-session-${sessionId}`
+    const proxyPass = proxyPassword
 
     const proxyConfig = {
       proxyHost: PROXY_HOST,
-      proxyPort: PROXY_PORT,
+      proxyPort,
       proxyUser,
       proxyPass,
     }
@@ -67,19 +66,22 @@ class ProxyManager {
    * 9Proxy'de "yenile" = farklı session ID ile farklı IP almak demektir.
    */
   async refreshProxy(accountId) {
-    // Yeni session ID için timestamp suffix ekle
+    const proxyUsername = await getSetting('PROXY_USERNAME')
+    const proxyPassword = await getSetting('PROXY_PASSWORD')
+    const proxyPort = parseInt(await getSetting('PROXY_PORT') || '9000', 10)
+
     const suffix = Date.now().toString().slice(-4)
     const account = await prisma.account.findUnique({ where: { id: accountId } })
     if (!account) throw new Error(`Account bulunamadı: ${accountId}`)
 
     const baseId = this._sessionId(accountId)
     const newSessionId = (baseId.slice(0, 4) + suffix).slice(0, 8)
-    const proxyUser = `${process.env.PROXY_USERNAME}-session-${newSessionId}`
-    const proxyPass = process.env.PROXY_PASSWORD
+    const proxyUser = `${proxyUsername}-session-${newSessionId}`
+    const proxyPass = proxyPassword
 
     const proxyConfig = {
       proxyHost: PROXY_HOST,
-      proxyPort: PROXY_PORT,
+      proxyPort,
       proxyUser,
       proxyPass,
     }

@@ -46,6 +46,12 @@ model Campaign {
   messages   Message[]
 }
 
+model Setting {
+  key       String   @id
+  value     String   @db.Text
+  updatedAt DateTime @updatedAt
+}
+
 model Message {
   id         String    @id @default(uuid())
   campaignId String
