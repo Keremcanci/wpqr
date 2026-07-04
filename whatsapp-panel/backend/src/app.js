@@ -21,6 +21,7 @@ const path = require('path')
 const fs = require('fs')
 
 const app = express()
+app.set('trust proxy', 'loopback') // nginx aynı sunucuda (localhost) proxy yapıyor
 app.use(helmet())
 app.use(cors({
   origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
@@ -69,7 +70,7 @@ sessionManager.setIO(io)
 // ── Sunucuyu başlat ───────────────────────────────────────────────────────────
 const PORT = process.env.PORT || 3001
 
-server.listen(PORT, async () => {
+server.listen(PORT, '127.0.0.1', async () => {
   console.log(`[App] Sunucu çalışıyor → http://localhost:${PORT}`)
 
   // DB'deki aktif hesapları başlat
