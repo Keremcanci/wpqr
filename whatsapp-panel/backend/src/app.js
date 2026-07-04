@@ -11,6 +11,8 @@ const campaignsRouter = require('./api/campaigns')
 const dashboardRouter = require('./api/dashboard')
 const uploadRouter = require('./api/upload')
 const settingsRouter = require('./api/settings')
+const authRouter = require('./api/auth')
+const authMiddleware = require('./middleware/auth')
 const { startWorker } = require('./queue/MessageWorker')
 const prisma = require('./config/db')
 
@@ -33,12 +35,13 @@ app.get('/health', (_req, res) => {
 })
 
 // ── API Router'ları ───────────────────────────────────────────────────────────
-app.use('/api/accounts', accountsRouter)
-app.use('/api/templates', templatesRouter)
-app.use('/api/campaigns', campaignsRouter)
-app.use('/api/dashboard', dashboardRouter)
-app.use('/api/upload', uploadRouter)
-app.use('/api/settings', settingsRouter)
+app.use('/api/auth', authRouter)
+app.use('/api/accounts', authMiddleware, accountsRouter)
+app.use('/api/templates', authMiddleware, templatesRouter)
+app.use('/api/campaigns', authMiddleware, campaignsRouter)
+app.use('/api/dashboard', authMiddleware, dashboardRouter)
+app.use('/api/upload', authMiddleware, uploadRouter)
+app.use('/api/settings', authMiddleware, settingsRouter)
 
 // ── Global hata yöneticisi ────────────────────────────────────────────────────
 app.use((err, _req, res, _next) => {

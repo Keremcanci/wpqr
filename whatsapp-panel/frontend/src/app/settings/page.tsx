@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Save, Eye, EyeOff } from "lucide-react"
+import { Save, Eye, EyeOff, KeyRound } from "lucide-react"
 import api from "@/lib/api"
 
 interface Settings {
@@ -9,6 +9,12 @@ interface Settings {
   PROXY_USERNAME: string
   PROXY_PASSWORD: string
   PROXY_PORT: string
+}
+
+interface PasswordForm {
+  currentPassword: string
+  newPassword: string
+  confirmPassword: string
 }
 
 export default function SettingsPage() {
@@ -23,6 +29,10 @@ export default function SettingsPage() {
   const [saved, setSaved] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [showApiKey, setShowApiKey] = useState(false)
+  const [pwForm, setPwForm] = useState<PasswordForm>({ currentPassword: "", newPassword: "", confirmPassword: "" })
+  const [pwSaving, setPwSaving] = useState(false)
+  const [pwError, setPwError] = useState("")
+  const [pwSaved, setPwSaved] = useState(false)
 
   useEffect(() => {
     api.get<Settings>("/api/settings").then(res => {
@@ -41,6 +51,30 @@ export default function SettingsPage() {
       alert("Kaydetme başarısız")
     } finally {
       setSaving(false)
+    }
+  }
+
+  async function handlePasswordChange(e: React.FormEvent) {
+    e.preventDefault()
+    setPwError("")
+    if (pwForm.newPassword !== pwForm.confirmPassword) {
+      setPwError("Yeni şifreler eşleşmiyor")
+      return
+    }
+    setPwSaving(true)
+    try {
+      await api.post("/api/auth/change-password", {
+        currentPassword: pwForm.currentPassword,
+        newPassword: pwForm.newPassword,
+      })
+      setPwSaved(true)
+      setPwForm({ currentPassword: "", newPassword: "", confirmPassword: "" })
+      setTimeout(() => setPwSaved(false), 3000)
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error
+      setPwError(msg || "Şifre değiştirme başarısız")
+    } finally {
+      setPwSaving(false)
     }
   }
 
@@ -128,6 +162,62 @@ export default function SettingsPage() {
         >
           <Save size={14} />
           {saving ? "Kaydediliyor..." : saved ? "Kaydedildi!" : "Kaydet"}
+        </button>
+      </form>
+
+      {/* Şifre Değiştir */}
+      <form onSubmit={handlePasswordChange} className="bg-white rounded-2xl border border-neutral-200 shadow-sm p-6 space-y-5">
+        <h3 className="text-base font-semibold text-neutral-800 border-b border-neutral-100 pb-3 flex items-center gap-2">
+          <KeyRound size={16} /> Şifre Değiştir
+        </h3>
+
+        <div className="space-y-1">
+          <label className="text-sm font-medium text-neutral-700">Mevcut Şifre</label>
+          <input
+            type="password"
+            value={pwForm.currentPassword}
+            onChange={e => setPwForm(f => ({ ...f, currentPassword: e.target.value }))}
+            placeholder="••••••••"
+            required
+            className="w-full border border-neutral-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+
+        <div className="space-y-1">
+          <label className="text-sm font-medium text-neutral-700">Yeni Şifre</label>
+          <input
+            type="password"
+            value={pwForm.newPassword}
+            onChange={e => setPwForm(f => ({ ...f, newPassword: e.target.value }))}
+            placeholder="En az 6 karakter"
+            required
+            className="w-full border border-neutral-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+
+        <div className="space-y-1">
+          <label className="text-sm font-medium text-neutral-700">Yeni Şifre (Tekrar)</label>
+          <input
+            type="password"
+            value={pwForm.confirmPassword}
+            onChange={e => setPwForm(f => ({ ...f, confirmPassword: e.target.value }))}
+            placeholder="••••••••"
+            required
+            className="w-full border border-neutral-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+
+        {pwError && (
+          <p className="text-sm text-red-500 bg-red-50 border border-red-100 rounded-lg px-3 py-2">{pwError}</p>
+        )}
+
+        <button
+          type="submit"
+          disabled={pwSaving}
+          className="flex items-center gap-2 bg-neutral-900 text-white text-sm px-4 py-2 rounded-lg hover:bg-neutral-700 disabled:opacity-50 transition-colors"
+        >
+          <KeyRound size={14} />
+          {pwSaving ? "Değiştiriliyor..." : pwSaved ? "Şifre Değiştirildi!" : "Şifreyi Değiştir"}
         </button>
       </form>
     </div>

@@ -2,7 +2,8 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { LayoutDashboard, Smartphone, FileText, Send, BarChart2, Settings } from "lucide-react"
+import { LayoutDashboard, Smartphone, FileText, Send, BarChart2, Settings, LogOut } from "lucide-react"
+import { useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
 
 const links = [
@@ -16,6 +17,12 @@ const links = [
 
 export default function Sidebar() {
   const pathname = usePathname()
+  const router = useRouter()
+
+  function handleLogout() {
+    localStorage.removeItem("wp_token")
+    router.push("/login")
+  }
 
   // En uzun uyan href = en spesifik eşleşme → sadece o aktif
   const activeHref = links
@@ -45,8 +52,15 @@ export default function Sidebar() {
           </Link>
         ))}
       </nav>
-      <div className="px-5 py-4 border-t border-neutral-700 text-xs text-neutral-500">
-        v1.0.0
+      <div className="px-3 py-4 border-t border-neutral-700">
+        <button
+          onClick={handleLogout}
+          className="flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium text-neutral-400 hover:bg-neutral-800 hover:text-white transition-colors w-full"
+        >
+          <LogOut size={16} />
+          Çıkış Yap
+        </button>
+        <p className="text-xs text-neutral-600 px-3 mt-2">v1.0.0</p>
       </div>
     </aside>
   )
