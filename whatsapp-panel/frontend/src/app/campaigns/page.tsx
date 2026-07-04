@@ -2,9 +2,10 @@
 
 import { useEffect, useState, useCallback } from "react"
 import Link from "next/link"
-import { Plus, RefreshCw, Send, Clock, CheckCircle, XCircle, Loader } from "lucide-react"
+import { Plus, RefreshCw, Send, Clock, CheckCircle, XCircle, Loader, Trash2 } from "lucide-react"
 import api from "@/lib/api"
 import { useSocket } from "@/hooks/useSocket"
+import { useToast } from "@/components/Toast"
 
 interface Campaign {
   id: string
@@ -27,6 +28,7 @@ const STATUS_MAP = {
 export default function CampaignsPage() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([])
   const [loading, setLoading] = useState(true)
+  const { toast } = useToast()
 
   const load = useCallback(async () => {
     try {
@@ -60,7 +62,19 @@ export default function CampaignsPage() {
       await api.post(`/api/campaigns/${id}/stop`)
       setCampaigns((prev) => prev.map((c) => c.id === id ? { ...c, status: "failed" } : c))
     } catch {
-      alert("Durdurma başarısız")
+      toast("Durdurma başarısız", "error")
+    }
+  }
+
+  async function handleDelete(e: React.MouseEvent, id: string, name: string) {
+    e.preventDefault()
+    if (!confirm(`"${name}" kampanyasını silmek istediğinizden emin misiniz?`)) return
+    try {
+      await api.delete(`/api/campaigns/${id}`)
+      setCampaigns((prev) => prev.filter((c) => c.id !== id))
+      toast("Kampanya silindi", "success")
+    } catch (err: any) {
+      toast(err?.response?.data?.error || "Silme başarısız", "error")
     }
   }
 
@@ -146,6 +160,14 @@ export default function CampaignsPage() {
                         className="text-xs text-red-600 hover:text-red-800 border border-red-200 hover:border-red-400 rounded-lg px-2 py-1 transition-colors"
                       >
                         Durdur
+                      </button>
+                    )}
+                    {(c.status === "completed" || c.status === "failed") && (
+                      <button
+                        onClick={(e) => handleDelete(e, c.id, c.name)}
+                        className="p-1.5 rounded-lg hover:bg-red-50 text-neutral-300 hover:text-red-500 transition-colors"
+                      >
+                        <Trash2 size={14} />
                       </button>
                     )}
                   </div>

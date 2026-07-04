@@ -70,6 +70,18 @@ router.post('/', async (req, res, next) => {
   } catch (err) { next(err) }
 })
 
+// DELETE /api/campaigns/:id — kampanyayı ve mesajlarını sil
+router.delete('/:id', async (req, res, next) => {
+  try {
+    const campaign = await prisma.campaign.findUnique({ where: { id: req.params.id } })
+    if (!campaign) return res.status(404).json({ error: 'Kampanya bulunamadı' })
+    if (campaign.status === 'running') return res.status(400).json({ error: 'Çalışan kampanya silinemez, önce durdurun' })
+    await prisma.message.deleteMany({ where: { campaignId: req.params.id } })
+    await prisma.campaign.delete({ where: { id: req.params.id } })
+    res.json({ success: true })
+  } catch (err) { next(err) }
+})
+
 // POST /api/campaigns/:id/stop — kampanyayı durdur
 router.post('/:id/stop', async (req, res, next) => {
   try {
