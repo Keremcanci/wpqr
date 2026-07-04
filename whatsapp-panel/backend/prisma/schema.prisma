@@ -29,6 +29,7 @@ model Template {
   id        String     @id @default(uuid())
   name      String
   body      String     @db.Text
+  imageUrl  String?
   createdAt DateTime   @default(now())
   campaigns Campaign[]
 }
