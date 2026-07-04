@@ -35,7 +35,7 @@ export default function Sidebar() {
     <aside className="w-56 shrink-0 bg-neutral-900 text-white flex flex-col min-h-screen">
       <div className="px-5 py-5 border-b border-neutral-700">
         <p className="text-xs font-semibold text-neutral-400 uppercase tracking-widest">WA Panel</p>
-        <h1 className="text-lg font-bold mt-0.5">Bulk Mesaj</h1>
+        <h1 className="text-lg font-bold mt-0.5">MardanBet</h1>
       </div>
       <nav className="flex-1 px-3 py-4 space-y-1">
         {links.map(({ href, label, icon: Icon }) => (

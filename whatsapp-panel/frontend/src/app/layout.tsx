@@ -5,7 +5,7 @@ import { ToastProvider } from "@/components/Toast"
 import { ConfirmProvider } from "@/components/ConfirmDialog"
 
 export const metadata: Metadata = {
-  title: "WhatsApp Bulk Panel",
+  title: "MardanBet Whatsapp Panel",
   description: "Toplu WhatsApp mesaj yönetim paneli",
 }
 
