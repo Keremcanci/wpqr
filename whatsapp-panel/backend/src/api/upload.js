@@ -25,19 +25,12 @@ const upload = multer({
   },
 })
 
-// Görsel upload — disk storage
+// Görsel upload — memory storage (sharp dönüşümü için)
 const UPLOADS_DIR = path.resolve(process.env.UPLOADS_DIR || './uploads')
 if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true })
 
-const imageStorage = multer.diskStorage({
-  destination: (_req, _file, cb) => cb(null, UPLOADS_DIR),
-  filename: (_req, file, cb) => {
-    const ext = path.extname(file.originalname)
-    cb(null, `${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`)
-  },
-})
 const imageUpload = multer({
-  storage: imageStorage,
+  storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB
   fileFilter: (_req, file, cb) => {
     if (file.mimetype.startsWith('image/')) cb(null, true)
@@ -46,11 +39,18 @@ const imageUpload = multer({
 })
 
 // POST /api/upload/image
-router.post('/image', imageUpload.single('image'), (req, res) => {
+router.post('/image', imageUpload.single('image'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'Görsel bulunamadı' })
-  const baseUrl = process.env.BASE_URL || `http://localhost:${process.env.PORT || 3001}`
-  const imageUrl = `${baseUrl}/uploads/${req.file.filename}`
-  res.json({ imageUrl })
+  try {
+    const sharp = require('sharp')
+    const filename = `${Date.now()}-${Math.random().toString(36).slice(2)}.jpg`
+    const outputPath = path.join(UPLOADS_DIR, filename)
+    await sharp(req.file.buffer).jpeg({ quality: 90 }).toFile(outputPath)
+    const baseUrl = process.env.BASE_URL || `http://localhost:${process.env.PORT || 3001}`
+    res.json({ imageUrl: `${baseUrl}/uploads/${filename}` })
+  } catch (err) {
+    res.status(500).json({ error: 'Görsel işlenemedi: ' + err.message })
+  }
 })
 
 function normalizePhone(raw) {
