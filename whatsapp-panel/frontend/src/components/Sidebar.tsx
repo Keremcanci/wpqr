@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation"
 import { LayoutDashboard, Smartphone, FileText, Send, BarChart2, Settings, LogOut } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
+import { disconnectSocket } from "@/hooks/useSocket"
 
 const links = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -20,6 +21,7 @@ export default function Sidebar() {
   const router = useRouter()
 
   function handleLogout() {
+    disconnectSocket()
     localStorage.removeItem("wp_token")
     router.push("/login")
   }

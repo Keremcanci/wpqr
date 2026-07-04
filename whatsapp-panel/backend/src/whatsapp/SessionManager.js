@@ -4,6 +4,7 @@ const qrcode = require('qrcode')
 const pino = require('pino')
 const prisma = require('../config/db')
 const proxyManager = require('./ProxyManager')
+const { encrypt } = require('../utils/crypto')
 
 const SESSION_DIR = path.resolve(process.env.SESSION_DIR || './sessions')
 
@@ -86,7 +87,7 @@ class SessionManager {
         const sessionData = fs.readFileSync(credsFile, 'utf-8')
         await prisma.account.update({
           where: { id: account.id },
-          data: { sessionData },
+          data: { sessionData: encrypt(sessionData) },
         })
       }
     })

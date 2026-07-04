@@ -1,4 +1,8 @@
 const { Server } = require('socket.io')
+const jwt = require('jsonwebtoken')
+
+const JWT_SECRET = process.env.JWT_SECRET
+if (!JWT_SECRET) throw new Error('JWT_SECRET ortam değişkeni tanımlı değil')
 
 let io = null
 
@@ -9,6 +13,17 @@ function initSocket(httpServer) {
       methods: ['GET', 'POST'],
       credentials: true,
     },
+  })
+
+  io.use((socket, next) => {
+    const token = socket.handshake.auth?.token
+    if (!token) return next(new Error('Yetkisiz'))
+    try {
+      socket.user = jwt.verify(token, JWT_SECRET)
+      next()
+    } catch {
+      next(new Error('Yetkisiz'))
+    }
   })
 
   io.on('connection', (socket) => {

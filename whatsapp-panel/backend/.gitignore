@@ -3,3 +3,4 @@ sessions/
 .env
 *.log
 prisma/migrations/
+uploads/

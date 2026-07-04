@@ -2,6 +2,7 @@ require('dotenv').config()
 const http = require('http')
 const express = require('express')
 const cors = require('cors')
+const helmet = require('helmet')
 const cron = require('node-cron')
 const { initSocket } = require('./socket')
 const sessionManager = require('./whatsapp/SessionManager')
@@ -20,6 +21,7 @@ const path = require('path')
 const fs = require('fs')
 
 const app = express()
+app.use(helmet())
 app.use(cors({
   origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
   credentials: true,
@@ -54,7 +56,7 @@ app.use('/api/settings', authMiddleware, settingsRouter)
 // ── Global hata yöneticisi ────────────────────────────────────────────────────
 app.use((err, _req, res, _next) => {
   console.error('[App] Hata:', err.message)
-  res.status(500).json({ error: err.message })
+  res.status(500).json({ error: 'Sunucu hatası' })
 })
 
 // ── HTTP sunucusu + Socket.io ─────────────────────────────────────────────────

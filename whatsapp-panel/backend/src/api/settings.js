@@ -1,9 +1,11 @@
 const { Router } = require('express')
 const prisma = require('../config/db')
+const { encrypt } = require('../utils/crypto')
 
 const router = Router()
 
 const ALLOWED_KEYS = ['PROXY_API_KEY', 'PROXY_USERNAME', 'PROXY_PASSWORD', 'PROXY_PORT']
+const ENCRYPTED_KEYS = new Set(['PROXY_PASSWORD', 'PROXY_API_KEY'])
 
 // GET /api/settings
 router.get('/', async (_req, res, next) => {
@@ -29,11 +31,12 @@ router.post('/', async (req, res, next) => {
       if (req.body[key] === undefined) continue
       // Maskelenmiş değer geldiyse güncelleme
       if (req.body[key] === '••••••••') continue
+      const value = ENCRYPTED_KEYS.has(key) ? encrypt(req.body[key]) : req.body[key]
       updates.push(
         prisma.setting.upsert({
           where: { key },
-          update: { value: req.body[key] },
-          create: { key, value: req.body[key] },
+          update: { value },
+          create: { key, value },
         })
       )
     }

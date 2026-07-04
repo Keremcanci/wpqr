@@ -9,9 +9,15 @@ function getSocket(): Socket {
   if (!_socket) {
     _socket = io(process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001", {
       transports: ["websocket"],
+      auth: { token: localStorage.getItem("wp_token") },
     })
   }
   return _socket
+}
+
+export function disconnectSocket() {
+  _socket?.disconnect()
+  _socket = null
 }
 
 export function useSocket(

@@ -35,6 +35,7 @@ systemctl start redis-server
 echo "=== [5/6] Nginx yapılandırılıyor ==="
 NGINX_CONF="/etc/nginx/sites-available/wpanel"
 cp "$(dirname "$0")/../nginx/wpanel.conf" "$NGINX_CONF"
+cp "$(dirname "$0")/../nginx/wpanel-ratelimit.conf" /etc/nginx/conf.d/wpanel-ratelimit.conf
 
 # Domain adını yerleştir
 sed -i "s/DOMAIN_ADI.com/$DOMAIN/g" "$NGINX_CONF"

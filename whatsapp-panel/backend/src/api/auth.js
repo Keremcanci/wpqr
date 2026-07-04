@@ -1,24 +1,37 @@
 const { Router } = require('express')
+const crypto = require('crypto')
 const bcrypt = require('bcryptjs')
 const jwt = require('jsonwebtoken')
+const rateLimit = require('express-rate-limit')
 const prisma = require('../config/db')
 
 const router = Router()
-const JWT_SECRET = process.env.JWT_SECRET || 'wpanel-secret-key'
+const JWT_SECRET = process.env.JWT_SECRET
+if (!JWT_SECRET) throw new Error('JWT_SECRET ortam değişkeni tanımlı değil')
+
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Çok fazla deneme yapıldı, lütfen daha sonra tekrar deneyin' },
+})
 
 // İlk çalıştırmada admin kullanıcısı yoksa oluştur
 async function ensureAdminExists() {
   const count = await prisma.user.count()
   if (count === 0) {
-    const hash = await bcrypt.hash('admin123', 10)
+    const password = process.env.ADMIN_PASSWORD || crypto.randomBytes(9).toString('base64url')
+    const hash = await bcrypt.hash(password, 10)
     await prisma.user.create({ data: { username: 'admin', passwordHash: hash } })
-    console.log('[Auth] Varsayılan admin kullanıcısı oluşturuldu → admin / admin123')
+    console.log(`[Auth] Varsayılan admin kullanıcısı oluşturuldu → admin / ${password}`)
+    console.log('[Auth] Bu şifreyi ilk girişten hemen sonra değiştirin!')
   }
 }
 ensureAdminExists().catch(console.error)
 
 // POST /api/auth/login
-router.post('/login', async (req, res) => {
+router.post('/login', authLimiter, async (req, res) => {
   const { username, password } = req.body
   if (!username || !password) return res.status(400).json({ error: 'Kullanıcı adı ve şifre zorunlu' })
 
@@ -33,7 +46,7 @@ router.post('/login', async (req, res) => {
 })
 
 // POST /api/auth/change-password
-router.post('/change-password', async (req, res) => {
+router.post('/change-password', authLimiter, async (req, res) => {
   const auth = req.headers.authorization
   if (!auth?.startsWith('Bearer ')) return res.status(401).json({ error: 'Yetkisiz' })
 

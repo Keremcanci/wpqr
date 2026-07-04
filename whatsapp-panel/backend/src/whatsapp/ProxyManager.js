@@ -1,11 +1,14 @@
 const axios = require('axios')
 const prisma = require('../config/db')
+const { encrypt, decrypt } = require('../utils/crypto')
 
 const PROXY_HOST = 'proxy.9proxy.com'
+const ENCRYPTED_SETTING_KEYS = new Set(['PROXY_PASSWORD', 'PROXY_API_KEY'])
 
 async function getSetting(key) {
   const row = await prisma.setting.findUnique({ where: { key } })
-  return row ? row.value : (process.env[key] || '')
+  if (!row) return process.env[key] || ''
+  return ENCRYPTED_SETTING_KEYS.has(key) ? decrypt(row.value) : row.value
 }
 
 class ProxyManager {
@@ -17,9 +20,9 @@ class ProxyManager {
   }
 
   // 9Proxy API üzerinden mevcut IP'yi sorgular (opsiyonel doğrulama için)
-  async _fetchCurrentIp(proxyUser, proxyPass) {
+  async _fetchCurrentIp(proxyUser, proxyPass, proxyPort) {
     try {
-      const proxyUrl = `http://${proxyUser}:${proxyPass}@${PROXY_HOST}:${PROXY_PORT}`
+      const proxyUrl = `http://${proxyUser}:${proxyPass}@${PROXY_HOST}:${proxyPort}`
       const response = await axios.get('https://api.ipify.org?format=json', {
         proxy: false,
         httpAgent: undefined,
@@ -55,7 +58,7 @@ class ProxyManager {
 
     await prisma.account.update({
       where: { id: accountId },
-      data: proxyConfig,
+      data: { ...proxyConfig, proxyPass: encrypt(proxyPass) },
     })
 
     return proxyConfig
@@ -88,7 +91,7 @@ class ProxyManager {
 
     await prisma.account.update({
       where: { id: accountId },
-      data: proxyConfig,
+      data: { ...proxyConfig, proxyPass: encrypt(proxyPass) },
     })
 
     return proxyConfig

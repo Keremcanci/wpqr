@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken')
-const JWT_SECRET = process.env.JWT_SECRET || 'wpanel-secret-key'
+const JWT_SECRET = process.env.JWT_SECRET
+if (!JWT_SECRET) throw new Error('JWT_SECRET ortam değişkeni tanımlı değil')
 
 module.exports = function authMiddleware(req, res, next) {
   const auth = req.headers.authorization
