@@ -1,7 +1,7 @@
 "use client"
 
-import { useEffect, useState, useCallback } from "react"
-import { Plus, Pencil, Trash2, RefreshCw, X, Check, FileText } from "lucide-react"
+import { useEffect, useState, useCallback, useRef } from "react"
+import { Plus, Pencil, Trash2, RefreshCw, X, Check, FileText, Image, Upload, XCircle } from "lucide-react"
 import api from "@/lib/api"
 import TemplateEditor from "@/components/TemplateEditor"
 
@@ -9,24 +9,29 @@ interface Template {
   id: string
   name: string
   body: string
+  imageUrl: string | null
   createdAt: string
 }
 
 interface FormState {
   name: string
   body: string
+  imageUrl: string | null
 }
 
-const EMPTY_FORM: FormState = { name: "", body: "" }
+const EMPTY_FORM: FormState = { name: "", body: "", imageUrl: null }
 
 export default function TemplatesPage() {
   const [templates, setTemplates] = useState<Template[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [uploading, setUploading] = useState(false)
 
   // null = kapalı | "new" = yeni | Template = düzenle
   const [modal, setModal] = useState<null | "new" | Template>(null)
   const [form, setForm] = useState<FormState>(EMPTY_FORM)
+
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const load = useCallback(async () => {
     try {
@@ -44,13 +49,37 @@ export default function TemplatesPage() {
   }
 
   function openEdit(t: Template) {
-    setForm({ name: t.name, body: t.body })
+    setForm({ name: t.name, body: t.body, imageUrl: t.imageUrl ?? null })
     setModal(t)
   }
 
   function closeModal() {
     setModal(null)
     setForm(EMPTY_FORM)
+  }
+
+  async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploading(true)
+    try {
+      const fd = new FormData()
+      fd.append("image", file)
+      const res = await api.post<{ imageUrl: string }>("/api/upload/image", fd, {
+        headers: { "Content-Type": "multipart/form-data" },
+      })
+      setForm((f) => ({ ...f, imageUrl: res.data.imageUrl }))
+    } catch {
+      alert("Görsel yükleme başarısız")
+    } finally {
+      setUploading(false)
+      if (fileInputRef.current) fileInputRef.current.value = ""
+    }
+  }
+
+  function removeImage() {
+    setForm((f) => ({ ...f, imageUrl: null }))
+    if (fileInputRef.current) fileInputRef.current.value = ""
   }
 
   async function handleSave(e: React.FormEvent) {
@@ -83,7 +112,6 @@ export default function TemplatesPage() {
     }
   }
 
-  // Şablondaki değişkenleri çıkar
   function extractVars(body: string) {
     return [...new Set(body.match(/\{[^}]+\}/g) || [])]
   }
@@ -135,9 +163,23 @@ export default function TemplatesPage() {
                 key={t.id}
                 className="bg-white rounded-xl border border-neutral-200 shadow-sm p-5 flex flex-col gap-3"
               >
+                {/* Görsel önizleme */}
+                {t.imageUrl && (
+                  <div className="rounded-lg overflow-hidden border border-neutral-100 bg-neutral-50 h-32">
+                    <img
+                      src={t.imageUrl}
+                      alt="Şablon görseli"
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                )}
+
                 {/* Başlık */}
                 <div className="flex items-start justify-between gap-2">
-                  <h3 className="font-semibold text-neutral-900 truncate">{t.name}</h3>
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    {t.imageUrl && <Image size={13} className="text-blue-500 shrink-0" />}
+                    <h3 className="font-semibold text-neutral-900 truncate">{t.name}</h3>
+                  </div>
                   <div className="flex gap-1 shrink-0">
                     <button
                       onClick={() => openEdit(t)}
@@ -185,9 +227,9 @@ export default function TemplatesPage() {
       {/* Ekle / Düzenle Modal */}
       {modal !== null && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] flex flex-col">
             {/* Modal başlık */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-neutral-100">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-neutral-100 shrink-0">
               <h2 className="text-lg font-bold text-neutral-900">
                 {modal === "new" ? "Yeni Şablon" : "Şablonu Düzenle"}
               </h2>
@@ -196,7 +238,7 @@ export default function TemplatesPage() {
               </button>
             </div>
 
-            <form onSubmit={handleSave} className="p-6 space-y-4">
+            <form onSubmit={handleSave} className="p-6 space-y-4 overflow-y-auto">
               {/* Şablon adı */}
               <div>
                 <label className="block text-sm font-medium text-neutral-700 mb-1">
@@ -228,6 +270,58 @@ export default function TemplatesPage() {
                   <code className="bg-neutral-100 px-1 rounded">{"{telefon}"}</code>{" "}
                   <code className="bg-neutral-100 px-1 rounded">{"{tarih}"}</code>
                 </p>
+              </div>
+
+              {/* Görsel */}
+              <div>
+                <label className="block text-sm font-medium text-neutral-700 mb-1">
+                  Görsel <span className="text-neutral-400 font-normal">(isteğe bağlı)</span>
+                </label>
+
+                {form.imageUrl ? (
+                  <div className="relative rounded-lg overflow-hidden border border-neutral-200 bg-neutral-50">
+                    <img
+                      src={form.imageUrl}
+                      alt="Yüklenen görsel"
+                      className="w-full h-40 object-cover"
+                    />
+                    <button
+                      type="button"
+                      onClick={removeImage}
+                      className="absolute top-2 right-2 bg-white rounded-full p-0.5 shadow-sm hover:bg-red-50 text-neutral-400 hover:text-red-500 transition-colors"
+                    >
+                      <XCircle size={18} />
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={uploading}
+                    className="w-full flex flex-col items-center justify-center gap-2 py-6 rounded-lg border-2 border-dashed border-neutral-200 hover:border-neutral-400 hover:bg-neutral-50 transition-colors text-neutral-400 hover:text-neutral-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {uploading ? (
+                      <>
+                        <RefreshCw size={20} className="animate-spin" />
+                        <span className="text-sm">Yükleniyor...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Upload size={20} />
+                        <span className="text-sm">Görsel yükle</span>
+                        <span className="text-xs">JPG, PNG, GIF — maks. 5 MB</span>
+                      </>
+                    )}
+                  </button>
+                )}
+
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleImageUpload}
+                />
               </div>
 
               {/* Aksiyonlar */}

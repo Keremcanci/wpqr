@@ -14,9 +14,9 @@ router.get('/', async (_req, res, next) => {
 // POST /api/templates
 router.post('/', async (req, res, next) => {
   try {
-    const { name, body } = req.body
+    const { name, body, imageUrl } = req.body
     if (!name || !body) return res.status(400).json({ error: 'name ve body zorunlu' })
-    const template = await prisma.template.create({ data: { name, body } })
+    const template = await prisma.template.create({ data: { name, body, imageUrl: imageUrl || null } })
     res.status(201).json(template)
   } catch (err) { next(err) }
 })
@@ -24,10 +24,14 @@ router.post('/', async (req, res, next) => {
 // PUT /api/templates/:id
 router.put('/:id', async (req, res, next) => {
   try {
-    const { name, body } = req.body
+    const { name, body, imageUrl } = req.body
     const template = await prisma.template.update({
       where: { id: req.params.id },
-      data: { ...(name && { name }), ...(body && { body }) },
+      data: {
+        ...(name && { name }),
+        ...(body && { body }),
+        imageUrl: imageUrl !== undefined ? (imageUrl || null) : undefined,
+      },
     })
     res.json(template)
   } catch (err) {
