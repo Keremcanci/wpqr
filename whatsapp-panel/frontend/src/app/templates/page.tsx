@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback, useRef } from "react"
 import { Plus, Pencil, Trash2, RefreshCw, X, Check, FileText, Image, Upload, XCircle } from "lucide-react"
 import api from "@/lib/api"
 import TemplateEditor from "@/components/TemplateEditor"
+import { useToast } from "@/components/Toast"
 
 interface Template {
   id: string
@@ -31,6 +32,7 @@ export default function TemplatesPage() {
   const [modal, setModal] = useState<null | "new" | Template>(null)
   const [form, setForm] = useState<FormState>(EMPTY_FORM)
 
+  const { toast } = useToast()
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const load = useCallback(async () => {
@@ -70,7 +72,7 @@ export default function TemplatesPage() {
       })
       setForm((f) => ({ ...f, imageUrl: res.data.imageUrl }))
     } catch {
-      alert("Görsel yükleme başarısız")
+      toast("Görsel yükleme başarısız", "error")
     } finally {
       setUploading(false)
       if (fileInputRef.current) fileInputRef.current.value = ""
@@ -95,8 +97,8 @@ export default function TemplatesPage() {
         setTemplates((p) => p.map((t) => (t.id === modal.id ? res.data : t)))
       }
       closeModal()
-    } catch {
-      alert("Kaydetme başarısız")
+    } catch (err: any) {
+      toast(err?.response?.data?.error || "Kaydetme başarısız", "error")
     } finally {
       setSaving(false)
     }
@@ -107,8 +109,9 @@ export default function TemplatesPage() {
     try {
       await api.delete(`/api/templates/${id}`)
       setTemplates((p) => p.filter((t) => t.id !== id))
-    } catch {
-      alert("Silme başarısız")
+    } catch (err: any) {
+      const msg = err?.response?.data?.error || "Silme başarısız"
+      toast(msg, "error")
     }
   }
 
