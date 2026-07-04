@@ -36,7 +36,7 @@ async function claimAccountSlot() {
 }
 
 async function processMessage(job) {
-  const { campaignId, toPhone, body } = job.data
+  const { campaignId, toPhone, body, imageUrl } = job.data
 
   // Kampanya durdurulmuş mu?
   const campaign = await prisma.campaign.findUnique({
@@ -61,7 +61,7 @@ async function processMessage(job) {
   })
 
   try {
-    await sessionManager.sendMessage(account.id, toPhone, body)
+    await sessionManager.sendMessage(account.id, toPhone, body, imageUrl || null)
 
     await prisma.message.update({
       where: { id: message.id },

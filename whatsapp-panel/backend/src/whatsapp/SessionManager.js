@@ -190,12 +190,24 @@ class SessionManager {
     )
   }
 
-  async sendMessage(accountId, toPhone, message) {
+  async sendMessage(accountId, toPhone, message, imageUrl = null) {
     const sock = this.sessions.get(accountId)
     if (!sock) throw new Error(`Aktif oturum yok: ${accountId}`)
 
     const jid = toPhone.replace(/\D/g, '') + '@s.whatsapp.net'
-    const result = await sock.sendMessage(jid, { text: message })
+
+    let result
+    if (imageUrl) {
+      const axios = require('axios')
+      const response = await axios.get(imageUrl, { responseType: 'arraybuffer' })
+      const buffer = Buffer.from(response.data)
+      result = await sock.sendMessage(jid, {
+        image: buffer,
+        caption: message,
+      })
+    } else {
+      result = await sock.sendMessage(jid, { text: message })
+    }
 
     await prisma.account.update({
       where: { id: accountId },

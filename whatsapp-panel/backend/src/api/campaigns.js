@@ -60,7 +60,7 @@ router.post('/', async (req, res, next) => {
       for (const [key, val] of Object.entries(variables)) {
         body = body.replace(new RegExp(`\\{${key}\\}`, 'g'), val)
       }
-      return { phone, body }
+      return { phone, body, imageUrl: template.imageUrl || null }
     })
 
     // Mesajları kuyruğa ekle

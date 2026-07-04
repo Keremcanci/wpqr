@@ -16,12 +16,20 @@ const authMiddleware = require('./middleware/auth')
 const { startWorker } = require('./queue/MessageWorker')
 const prisma = require('./config/db')
 
+const path = require('path')
+const fs = require('fs')
+
 const app = express()
 app.use(cors({
   origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
   credentials: true,
 }))
 app.use(express.json())
+
+// ── Statik dosyalar (görseller) ───────────────────────────────────────────────
+const UPLOADS_DIR = path.resolve(process.env.UPLOADS_DIR || './uploads')
+if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true })
+app.use('/uploads', express.static(UPLOADS_DIR))
 
 // ── Cron: dailySent her gece 00:00'da sıfırla ────────────────────────────────
 cron.schedule('0 0 * * *', async () => {

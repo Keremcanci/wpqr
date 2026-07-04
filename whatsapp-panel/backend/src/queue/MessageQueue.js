@@ -24,12 +24,12 @@ const messageQueue = new Queue('messages', {
 async function addCampaignToQueue(campaignId, recipients) {
   let cumulativeDelay = 0
 
-  const jobs = recipients.map(({ phone, body }) => {
+  const jobs = recipients.map(({ phone, body, imageUrl }) => {
     const delay = Math.floor(3000 + Math.random() * 5000)
     cumulativeDelay += delay
     return {
       name: 'send-message',
-      data: { campaignId, toPhone: phone, body },
+      data: { campaignId, toPhone: phone, body, imageUrl: imageUrl || null },
       opts: { delay: cumulativeDelay },
     }
   })
