@@ -5,6 +5,7 @@ import { Plus, Pencil, Trash2, RefreshCw, X, Check, FileText, Image, Upload, XCi
 import api from "@/lib/api"
 import TemplateEditor from "@/components/TemplateEditor"
 import { useToast } from "@/components/Toast"
+import { useConfirm } from "@/components/ConfirmDialog"
 
 interface Template {
   id: string
@@ -33,6 +34,7 @@ export default function TemplatesPage() {
   const [form, setForm] = useState<FormState>(EMPTY_FORM)
 
   const { toast } = useToast()
+  const confirm = useConfirm()
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const load = useCallback(async () => {
@@ -105,7 +107,8 @@ export default function TemplatesPage() {
   }
 
   async function handleDelete(id: string, name: string) {
-    if (!confirm(`"${name}" şablonunu silmek istediğinizden emin misiniz?`)) return
+    const ok = await confirm({ title: "Şablonu Sil", message: `"${name}" şablonu silinecek.`, confirmLabel: "Sil" })
+    if (!ok) return
     try {
       await api.delete(`/api/templates/${id}`)
       setTemplates((p) => p.filter((t) => t.id !== id))

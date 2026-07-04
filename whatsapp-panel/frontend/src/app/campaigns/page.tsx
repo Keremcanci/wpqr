@@ -6,6 +6,7 @@ import { Plus, RefreshCw, Send, Clock, CheckCircle, XCircle, Loader, Trash2 } fr
 import api from "@/lib/api"
 import { useSocket } from "@/hooks/useSocket"
 import { useToast } from "@/components/Toast"
+import { useConfirm } from "@/components/ConfirmDialog"
 
 interface Campaign {
   id: string
@@ -29,6 +30,7 @@ export default function CampaignsPage() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([])
   const [loading, setLoading] = useState(true)
   const { toast } = useToast()
+  const confirm = useConfirm()
 
   const load = useCallback(async () => {
     try {
@@ -57,7 +59,8 @@ export default function CampaignsPage() {
 
   async function handleStop(e: React.MouseEvent, id: string) {
     e.preventDefault()
-    if (!confirm("Kampanyayı durdurmak istediğinizden emin misiniz?")) return
+    const ok = await confirm({ message: "Kampanyayı durdurmak istediğinizden emin misiniz?", confirmLabel: "Durdur" })
+    if (!ok) return
     try {
       await api.post(`/api/campaigns/${id}/stop`)
       setCampaigns((prev) => prev.map((c) => c.id === id ? { ...c, status: "failed" } : c))
@@ -68,7 +71,8 @@ export default function CampaignsPage() {
 
   async function handleDelete(e: React.MouseEvent, id: string, name: string) {
     e.preventDefault()
-    if (!confirm(`"${name}" kampanyasını silmek istediğinizden emin misiniz?`)) return
+    const ok = await confirm({ title: "Kampanyayı Sil", message: `"${name}" kampanyası ve tüm mesaj kayıtları silinecek.`, confirmLabel: "Sil" })
+    if (!ok) return
     try {
       await api.delete(`/api/campaigns/${id}`)
       setCampaigns((prev) => prev.filter((c) => c.id !== id))
