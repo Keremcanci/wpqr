@@ -55,6 +55,7 @@ class SessionManager {
       agent = new HttpsProxyAgent(
         `http://${proxy.proxyUser}:${proxy.proxyPass}@${proxy.proxyHost}:${proxy.proxyPort}`
       )
+      console.log(`[SessionManager] Proxy ile bağlanıyor → ${account.phone} (${proxy.proxyHost}:${proxy.proxyPort})`)
     } else {
       console.warn(`[SessionManager] Proxy yok, direkt bağlanıyor → ${account.phone}`)
     }
@@ -241,3 +242,4 @@ class SessionManager {
 }
 
 module.exports = new SessionManager()
+module.exports.SESSION_DIR = SESSION_DIR

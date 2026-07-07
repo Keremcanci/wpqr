@@ -1,4 +1,6 @@
 const { Router } = require('express')
+const path = require('path')
+const fs = require('fs')
 const prisma = require('../config/db')
 const sessionManager = require('../whatsapp/SessionManager')
 const proxyManager = require('../whatsapp/ProxyManager')
@@ -64,6 +66,9 @@ router.delete('/:id', async (req, res, next) => {
       sessionManager.removeSession(id)
     }
     await proxyManager.releaseProxy(id).catch(() => {})
+    // Diskteki Baileys oturum dosyalarını da temizle (kalıntı bırakmasın)
+    const sessionDir = path.join(sessionManager.SESSION_DIR, id)
+    fs.rmSync(sessionDir, { recursive: true, force: true })
     // Önce bağlı mesajları sil, sonra hesabı sil (schema'da cascade yok)
     await prisma.message.deleteMany({ where: { accountId: id } })
     await prisma.account.delete({ where: { id } })
