@@ -3,6 +3,10 @@ const prisma = require('../config/db')
 const { encrypt, decrypt } = require('../utils/crypto')
 
 const ENCRYPTED_SETTING_KEYS = new Set(['PROXY_PASSWORD', 'PROXY_API_KEY'])
+// DataImpulse'ta session ayrımı kullanıcı adıyla değil PORT numarasıyla yapılır:
+// aynı login:password, farklı port = farklı sticky IP. Havuzu maksimum hesap
+// sayısının (10) çok üzerinde tutuyoruz ki port aralığı asla tükenmesin.
+const PORT_POOL_SIZE = 100
 
 async function getSetting(key) {
   const row = await prisma.setting.findUnique({ where: { key } })
@@ -11,11 +15,19 @@ async function getSetting(key) {
 }
 
 class ProxyManager {
-  // accountId için deterministik session kimliği üretir.
-  // Aynı accountId → hep aynı IP (sticky session).
-  _sessionId(accountId) {
-    // 9Proxy session ID'si alfanümerik ve 8 karakter olmalı
-    return accountId.replace(/-/g, '').slice(0, 8)
+  // Havuzdaki, başka hiçbir hesabın kullanmadığı en küçük portu döndürür.
+  async _pickFreePort(accountId, basePort, excludePort = null) {
+    const others = await prisma.account.findMany({
+      where: { id: { not: accountId }, proxyPort: { not: null } },
+      select: { proxyPort: true },
+    })
+    const used = new Set(others.map(a => a.proxyPort))
+    if (excludePort) used.add(excludePort)
+    for (let offset = 0; offset < PORT_POOL_SIZE; offset++) {
+      const port = basePort + offset
+      if (!used.has(port)) return port
+    }
+    throw new Error('Kullanılabilir proxy portu kalmadı (havuz dolu)')
   }
 
   // 9Proxy API üzerinden mevcut IP'yi sorgular (opsiyonel doğrulama için)
@@ -36,17 +48,22 @@ class ProxyManager {
   }
 
   /**
-   * Belirtilen accountId için 9Proxy sticky session bilgilerini döndürür
-   * ve Account kaydını günceller.
+   * Belirtilen accountId için sticky proxy bilgilerini döndürür ve Account
+   * kaydını günceller. Hesabın daha önce atanmış bir portu varsa (sticky)
+   * onu korur; yoksa havuzdan boş bir port seçer.
    */
   async getProxyForAccount(accountId) {
     const proxyHost = await getSetting('PROXY_HOST')
     const proxyUsername = await getSetting('PROXY_USERNAME')
     const proxyPassword = await getSetting('PROXY_PASSWORD')
-    const proxyPort = parseInt(await getSetting('PROXY_PORT') || '9000', 10)
+    const basePort = parseInt(await getSetting('PROXY_PORT') || '10000', 10)
 
-    const sessionId = this._sessionId(accountId)
-    const proxyUser = `${proxyUsername}-ssid-${sessionId}`
+    const existing = await prisma.account.findUnique({ where: { id: accountId }, select: { proxyPort: true } })
+    const hasStickyPort = existing?.proxyPort != null &&
+      existing.proxyPort >= basePort && existing.proxyPort < basePort + PORT_POOL_SIZE
+    const proxyPort = hasStickyPort ? existing.proxyPort : await this._pickFreePort(accountId, basePort)
+
+    const proxyUser = proxyUsername
     const proxyPass = proxyPassword
 
     const proxyConfig = {
@@ -65,22 +82,21 @@ class ProxyManager {
   }
 
   /**
-   * Proxy düştüğünde yeni bir session ID üretip hesabı günceller.
-   * 9Proxy'de "yenile" = farklı session ID ile farklı IP almak demektir.
+   * Proxy düştüğünde hesaba havuzdan farklı bir port (dolayısıyla farklı IP)
+   * atar.
    */
   async refreshProxy(accountId) {
     const proxyHost = await getSetting('PROXY_HOST')
     const proxyUsername = await getSetting('PROXY_USERNAME')
     const proxyPassword = await getSetting('PROXY_PASSWORD')
-    const proxyPort = parseInt(await getSetting('PROXY_PORT') || '9000', 10)
+    const basePort = parseInt(await getSetting('PROXY_PORT') || '10000', 10)
 
-    const suffix = Date.now().toString().slice(-4)
     const account = await prisma.account.findUnique({ where: { id: accountId } })
     if (!account) throw new Error(`Account bulunamadı: ${accountId}`)
 
-    const baseId = this._sessionId(accountId)
-    const newSessionId = (baseId.slice(0, 4) + suffix).slice(0, 8)
-    const proxyUser = `${proxyUsername}-ssid-${newSessionId}`
+    const proxyPort = await this._pickFreePort(accountId, basePort, account.proxyPort)
+
+    const proxyUser = proxyUsername
     const proxyPass = proxyPassword
 
     const proxyConfig = {

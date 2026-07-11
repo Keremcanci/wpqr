@@ -24,7 +24,7 @@ export default function SettingsPage() {
     PROXY_HOST: "",
     PROXY_USERNAME: "",
     PROXY_PASSWORD: "",
-    PROXY_PORT: "9000",
+    PROXY_PORT: "10000",
   })
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -162,10 +162,10 @@ export default function SettingsPage() {
             type="number"
             value={settings.PROXY_PORT}
             onChange={e => setSettings(s => ({ ...s, PROXY_PORT: e.target.value }))}
-            placeholder="9000"
+            placeholder="10000"
             className="w-full border border-neutral-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
-          <p className="text-xs text-neutral-400">Varsayılan: 9000</p>
+          <p className="text-xs text-neutral-400">Her hesaba otomatik olarak bu porttan itibaren farklı bir port atanır (sticky IP)</p>
         </div>
 
         <button
